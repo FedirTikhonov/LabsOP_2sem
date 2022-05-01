@@ -1,92 +1,60 @@
 #include "library.h"
 using namespace std;
 
+
 lessonInfo inputLesson() {
-    lessonInfo lesson;
+    lessonInfo lesson{};
     setlocale(LC_ALL, "");
     cout << "Введіть назву предмета" << endl;
     cin >> lesson.subject;
     cout << "Введіть початок пари в форматі ГГ:ХХ" << endl;
     scanf("%d:%d", &lesson.start.hours, &lesson.start.minutes);
-    cout << "Введіть час у хвилинах після пари:" << endl;
-    cin >> lesson.rest;
     lesson.finish.hours = (lesson.start.hours*60 + lesson.start.minutes + 105) / 60;
     lesson.finish.minutes = (lesson.start.hours*60 + lesson.start.minutes + 105) % 60;
     return lesson;
 }
+
+
 void outputLesson(lessonInfo lesson){
     cout << "Дисципліна - " << lesson.subject << endl;
     printf("Час проведення: %d:%02d - %d:%02d\n", lesson.start.hours, lesson.start.minutes, lesson.finish.hours, lesson.finish.minutes);
-    cout << "Перерва - " << lesson.rest << "хв\n";
 }
-vector <lessonInfo> OverlaidLessons(vector <lessonInfo>& lessons, lessonInfo lesson){
-    vector <lessonInfo> overlaid_lessons = {};
-    if(lessons.empty()){
-        lessons.push_back(lesson);
-        return overlaid_lessons;
-    }
-    if(!lessons.empty()){
-        for(int i = 0; i < lessons.size(); i++){
-            if(lesson.start.hours >= lessons[i].start.hours) {
-                if (lesson.start.hours * 60 + lesson.start.minutes - lessons[i].finish.hours * 60 -
-                    lessons[i].finish.minutes - lessons[i].rest < 0) {
-                    overlaid_lessons.push_back(lessons[i]);
-                }
-            }
-            else if(lesson.start.hours <= lessons[i].start.hours){
-                if(lessons[i].start.hours*60 + lessons[i].start.minutes - lesson.finish.hours*60 -
-                lesson.finish.minutes - lesson.rest < 0){
-                    overlaid_lessons.push_back(lessons[i]);
-                }
-            }
-        }
-    }
-    lessons.push_back(lesson);
-    return overlaid_lessons;
-}
-void displayOverlaid(vector <lessonInfo> overlaid){
+
+
+void inputLessons(const string& fileName){
     setlocale(LC_ALL, "");
-    int len = overlaid.size();
-    if(!overlaid.empty()){
-        cout << "Деякі пари накладаються на введену пару:"  << endl;
-        for(int i = 0; i< len; i++){
-            outputLesson(overlaid[i]);
-        }
-    }
-}
-void inputLessons(string fileName){
-    setlocale(LC_ALL, "");
-    vector <lessonInfo> lessons = {};
-    vector <lessonInfo> overlaid_lessons = {};
-    ofstream file;
-    file.open(fileName, ios::app | ios::binary);
-    string move_on = "т";
-    while(move_on == "т"){
-        lessonInfo lesson_buffer = inputLesson();
-        overlaid_lessons = OverlaidLessons(lessons, lesson_buffer);
-        displayOverlaid(overlaid_lessons);
-        file.write((char*)&lesson_buffer, sizeof(lesson_buffer));
-        cout << "Чи бажаєте ви доповнити розклад?\nНапишіть 'т', якщо хочете продовжити. Напишіть 'н', якщо розклад заповнений.\n";
-        cin.ignore();
+    vector <lessonInfo> lessons = getVector(fileName);
+    string move_on;
+    while(move_on != "т"){
+        lessonInfo lesson = inputLesson();
+        insertSorted(lesson, lessons);
+        CheckIntervals(lessons);
+        cout << "Розклад заповнений? Введіть 'т', якщо розклад заповнений." << endl;
         cin >> move_on;
+    }
+    ofstream file;
+    file.open(fileName, ios::out | ios::binary);
+    for(lessonInfo lesson : lessons){
+        file.write((char*)&lesson, sizeof(lesson));
     }
     file.close();
 }
 
-void displayTimetable(string fileName){
+
+void displayTimetable(const string& fileName){
     ifstream file;
     file.open(fileName, ios::in | ios::binary);
-    lessonInfo lesson;
+    lessonInfo lesson{};
     cout << "Читаємо розклад з бінарного файлу " << fileName << endl;
     while(file.read((char*)&lesson, sizeof(lesson))){
         cout << endl;
         outputLesson(lesson);
-
     }
     file.close();
 }
 
-void askToDelete(string fileName){
+
+void askToDelete(const string& fileName){
     cout << "Хочете зберегти файл?" << endl;
     cout << "Напишіть 'т', якщо хочете." << endl;
     string answer;
@@ -95,5 +63,54 @@ void askToDelete(string fileName){
     if(answer != "т"){
         ofstream file(fileName, ios::binary | ios::out);
         file.close();
+    }
+}
+
+
+void insertSorted(lessonInfo lesson, vector<lessonInfo>& lessonList){
+    bool inserted = false;
+    for(int i = 0; i < lessonList.size() && !inserted; i++){
+        if(lesson.start.hours * 60 + lesson.start.minutes -
+        lessonList[i].finish.hours * 60 - lessonList[i].finish.minutes < 0){
+            lessonList.insert(lessonList.begin() + i, lesson);
+            inserted = true;
+        }
+    }
+    if(!inserted){
+        lessonList.push_back(lesson);
+    }
+}
+
+vector <lessonInfo> getVector(string fileName){
+    ifstream file;
+    vector <lessonInfo> lessonVector = {};
+    lessonInfo lesson{};
+    file.open(fileName, ios::in | ios::binary);
+    while (file.read((char*)&lesson, sizeof(lesson))){
+        lessonVector.push_back(lesson);
+    }
+    file.close();
+    return lessonVector;
+}
+
+void CheckIntervals(vector<lessonInfo> lessonList){
+    for(int i = 0; i < lessonList.size() - 1; i++){
+        int difference = lessonList[i+1].start.hours* 60 + lessonList[i+1].start.minutes -
+                lessonList[i].finish.hours * 60 - lessonList[i].finish.minutes;
+        if(difference > 45){
+            cout << "Дуже велика перерва між парами:" << endl;
+            outputLesson(lessonList[i]);
+            outputLesson(lessonList[i+1]);
+        }
+        else if(difference > 0 && difference < 5){
+            cout << "Дуже мала перерва між парами:" << endl;
+            outputLesson(lessonList[i]);
+            outputLesson(lessonList[i+1]);
+        }
+        else if(difference < 0) {
+            cout << "Пари накладаються одна на іншу:" << endl;
+            outputLesson(lessonList[i]);
+            outputLesson(lessonList[i + 1]);
+        }
     }
 }

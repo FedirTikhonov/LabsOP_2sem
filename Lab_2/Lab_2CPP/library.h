@@ -11,13 +11,13 @@ struct timeFormat{
 struct lessonInfo{
     char subject[100];
     timeFormat start, finish;
-    int rest;
 };
 lessonInfo inputLesson();
 void outputLesson(lessonInfo lesson);
-vector <lessonInfo> OverlaidLessons(vector <lessonInfo>& lessons, lessonInfo lesson);
-void inputLessons(string fileName);
-void displayOverlaid(vector <lessonInfo> overlaid);
-void displayTimetable(string fileName);
-void askToDelete(string fileName);
+void inputLessons(const string& fileName);
+void displayTimetable(const string& fileName);
+void askToDelete(const string& fileName);
+void insertSorted(lessonInfo lesson, vector<lessonInfo>& lessonList);
+vector <lessonInfo> getVector(string fileName);
+void CheckIntervals(vector<lessonInfo> lessonList);
 

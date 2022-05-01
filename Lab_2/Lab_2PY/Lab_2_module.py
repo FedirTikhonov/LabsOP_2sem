@@ -8,81 +8,57 @@ class timeFormat:
 
 
 class lessonFormat:
-    def __init__(self, startHours, startMinutes, finishHours, finishMinutes, lessonName, rest):
+    def __init__(self, startHours, startMinutes, finishHours, finishMinutes, lessonName):
         self.start = timeFormat(startHours, startMinutes)
         self.finish = timeFormat(finishHours, finishMinutes)
         self.lessonName = lessonName
-        self.rest = rest
 
 
 def inputLesson():
     lessonName = input("Введіть назву предмета:\n")
     startHours, startMinutes = input("Введіть час початку пари у форматі ГГ:ХХ\n").split(":")
     startHours, startMinutes = int(startHours), int(startMinutes)
-    rest = int(input("Введіть тривалість перерви:\n"))
     finishHours = (startHours * 60 + startMinutes + 105) // 60
     finishMinutes = (startHours * 60 + startMinutes + 105) % 60
-    newLesson = lessonFormat(startHours, startMinutes, finishHours, finishMinutes, lessonName, rest)
+    newLesson = lessonFormat(startHours, startMinutes, finishHours, finishMinutes, lessonName)
     return newLesson
 
 
 def printLesson(lesson):
     print(f"\nНазва дисципліни - {lesson.lessonName}.")
     print(
-        f"Час проведення - {lesson.start.hours}:{str(lesson.start.minutes).zfill(2)} - {lesson.finish.hours}:{str(lesson.finish.minutes).zfill(2)}")
-    print(f"Перерва - {lesson.rest}\n")
+        f"Час проведення - {lesson.start.hours}:{str(lesson.start.minutes).zfill(2)} - "
+        f"{lesson.finish.hours}:{str(lesson.finish.minutes).zfill(2)}")
     return None
-
-
-def OverlaidLessons(lesson, lessonList):
-    overlaidList = []
-    if len(lessonList) == 0:
-        return None
-    if len(lessonList) > 0:
-        for lessonInList in lessonList:
-            if lesson.start.hours >= lessonInList.start.hours:
-                if lesson.start.hours * 60 + lesson.start.minutes - lessonInList.finish.hours * 60 - lessonInList.finish.minutes - lessonInList.rest < 0:
-                    overlaidList.append(lessonInList)
-            elif lesson.start.hours <= lessonInList.start.hours:
-                if lessonInList.start.hours * 60 + lessonInList.start.minutes - lesson.finish.hours * 60 - lesson.finish.minutes - lesson.rest < 0:
-                    overlaidList.append(lessonInList)
-    return overlaidList
 
 
 def inputLessons(fileName):
-    with open(fileName, 'ab') as file:
-        answer = ""
-        lessonList = []
-        while answer != "т":
-            lesson = inputLesson()
-            overlaid = OverlaidLessons(lesson, lessonList)
-            displayOverlaid(overlaid)
+    answer = ""
+    lessonList = getList(fileName)
+    while answer != "т":
+        lesson = inputLesson()
+        lessonList = insertSorted(lesson, lessonList)
+        answer = input("Введіть 'т', якщо розклад заповнений.\n")
+    CheckInterval(lessonList)
+    with open(fileName, 'wb') as file:
+        for lesson in lessonList:
             _pickle.dump(lesson, file)
-            lessonList.append(lesson)
-            answer = input("Введіть 'т', якщо розклад заповнений.\n")
-    return None
-
-
-def displayOverlaid(overlaidLessons):
-    if overlaidLessons is not None:
-        if len(overlaidLessons) > 0:
-            print("Деякі пари накладаються на введену дисципліну:\n")
-            for lesson in overlaidLessons:
-                printLesson(lesson)
     return None
 
 
 def outputLessons(fileName):
+    print("Виводимо розклад з файлу:")
     lesson = 0
     with open(fileName, 'rb') as file:
         try:
             lesson = _pickle.load(file)
+            printLesson(lesson)
         except EOFError:
             print("Розклад пустий.")
         while lesson:
-            printLesson(lesson)
             try:
                 lesson = _pickle.load(file)
+                printLesson(lesson)
             except EOFError:
                 break
     return None
@@ -94,3 +70,55 @@ def askToDelete(fileName):
         f = open(fileName, 'wb')
         f.close()
     return None
+
+
+def insertSorted(lesson, lessonList):
+    if lessonList is None:
+        lessonList = []
+        lessonList.append(lesson)
+    else:
+        inserted = False
+        for i in range(len(lessonList)):
+            if lesson.start.hours * 60 + lesson.start.minutes < \
+                    lessonList[i].start.hours * 60 + lessonList[i].start.minutes and not inserted:
+                lessonList.insert(i, lesson)
+                inserted = True
+        if not inserted:
+            lessonList.append(lesson)
+    return lessonList
+
+
+def CheckInterval(lessonList):
+    if len(lessonList) > 1:
+        for i in range(len(lessonList) - 1):
+            difference = lessonList[i+1].start.hours * 60 + lessonList[i+1].start.minutes - lessonList[i].finish.hours*60 - lessonList[i].finish.minutes
+            if difference > 45:
+                print("Між даними дисциплінами дуже велика перерва:")
+                printLesson(lessonList[i])
+                printLesson(lessonList[i+1])
+            if 5 > difference > 0:
+                print("Між даними дисциплінами дуже мала перерва:")
+                printLesson(lessonList[i])
+                printLesson(lessonList[i + 1])
+            if difference < 0:
+                print("Одна дисципліна накладається на іншу:")
+                printLesson(lessonList[i])
+                printLesson(lessonList[i + 1])
+        return None
+
+
+def getList(fileName):
+    lessonList = []
+    with open(fileName, 'rb') as file:
+        try:
+            lesson = _pickle.load(file)
+            lessonList.append(lesson)
+        except EOFError:
+            return lessonList
+        while lesson:
+            try:
+                lesson = _pickle.load(file)
+                lessonList.append(lesson)
+            except EOFError:
+                break
+    return lessonList
